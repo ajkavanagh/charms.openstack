@@ -6,17 +6,37 @@ import charms.reactive as reactive
 from charms_openstack.charm.classes import OpenStackCharm
 from charms_openstack.charm.core import register_os_release_selector
 
+
+class DefaultHandlers(object):
+    charm_installed = 'charm.installed'
+    amqp_connected = 'amqp.connected'
+    shared_db_connected = 'shared-db.connected'
+    identity_service_connected = 'identity-service.connected'
+    identity_service_available = 'identity-service.available'
+    config_changed = 'config.changed'
+    charm_default_select_release = 'charm.default-select-release'
+    update_status = 'update-status'
+    upgrade_charm = 'upgrade-charm'
+
+
+class DefaultHandlersLocks(object):
+    amqp_connection_done = 'default_amqp_connection_done'
+    setup_database_done = 'default_setup_database_done'
+    setup_endpoint_connection_done = 'default_setup_endpoint_connection_done'
+    setup_endpoint_available_done = 'default_setup_endpoint_available_done'
+
+
 # The default handlers that charms.openstack provides.
 ALLOWED_DEFAULT_HANDLERS = [
-    'charm.installed',
-    'amqp.connected',
-    'shared-db.connected',
-    'identity-service.connected',
-    'identity-service.available',
-    'config.changed',
-    'charm.default-select-release',
-    'update-status',
-    'upgrade-charm',
+    DefaultHandlers.charm_installed,
+    DefaultHandlers.amqp_connected,
+    DefaultHandlers.shared_db_connected,
+    DefaultHandlers.identity_service_connected,
+    DefaultHandlers.identity_service_available,
+    DefaultHandlers.config_changed,
+    DefaultHandlers.charm_default_select_release,
+    DefaultHandlers.update_status,
+    DefaultHandlers.upgrade_charm,
 ]
 
 # Where to store the default handler functions for each default state
@@ -61,7 +81,8 @@ def _map_default_handler(state):
                 .format(state))
         if state not in ALLOWED_DEFAULT_HANDLERS:
             raise RuntimeError(
-                "State '{} doesn't have a default handler????".format(state))
+                "State '{} doesn't have a default handler?: states({})"
+                .format(state, ALLOWED_DEFAULT_HANDLERS))
         _default_handler_map[state] = f
         return f
     return wrapper
@@ -111,6 +132,7 @@ def make_default_select_release_handler():
 def make_default_amqp_connection_handler():
 
     @reactive.when('amqp.connected')
+    @reactive.when_not(DefaultHandlersLocks.amqp_connection_done)
     def default_amqp_connection(amqp):
         """Handle the default amqp connection.
 
@@ -121,12 +143,19 @@ def make_default_amqp_connection_handler():
         user, vhost = instance.get_amqp_credentials()
         amqp.request_access(username=user, vhost=vhost)
         instance.assess_status()
+        reactive.set_state(DefaultHandlersLocks.amqp_connection_done)
+
+    @reactive.when(DefaultHandlersLocks.amqp_connection_done)
+    @reactive.when_not('amqp.connected')
+    def clear_default_amqp_connection(amqp):
+        reactive.remove_state(DefaultHandlersLocks.amqp_connection_done)
 
 
 @_map_default_handler('shared-db.connected')
 def make_default_setup_database_handler():
 
     @reactive.when('shared-db.connected')
+    @reactive.when_not(DefaultHandlersLocks.setup_database_done)
     def default_setup_database(database):
         """Handle the default database connection setup
 
@@ -140,12 +169,19 @@ def make_default_setup_database_handler():
         for db in instance.get_database_setup():
             database.configure(**db)
         instance.assess_status()
+        reactive.set_state(DefaultHandlersLocks.setup_database_done)
+
+    @reactive.when(DefaultHandlersLocks.setup_database_done)
+    @reactive.when_not('shared-db.connected')
+    def clear_default_setup_database(database):
+        reactive.remove_state(DefaultHandlersLocks.setup_database_done)
 
 
 @_map_default_handler('identity-service.connected')
 def make_default_setup_endpoint_connection():
 
     @reactive.when('identity-service.connected')
+    @reactive.when_not(DefaultHandlersLocks.setup_endpoint_connection_done)
     def default_setup_endpoint_connection(keystone):
         """When the keystone interface connects, register this unit into the
         catalog.  This is the default handler, and calls on the charm class to
@@ -159,12 +195,20 @@ def make_default_setup_endpoint_connection():
                                     instance.internal_url,
                                     instance.admin_url)
         instance.assess_status()
+        reactive.set_state(DefaultHandlersLocks.setup_endpoint_connection_done)
+
+    @reactive.when(DefaultHandlersLocks.setup_endpoint_connection_done)
+    @reactive.when_not('identity-service.connected')
+    def clear_default_setup_endpoint_connection(keystone):
+        reactive.remove_state(
+            DefaultHandlersLocks.setup_endpoint_connection_done)
 
 
 @_map_default_handler('identity-service.available')
 def make_setup_endpoint_available_handler():
 
     @reactive.when('identity-service.available')
+    @reactive.when_not(DefaultHandlersLocks.setup_endpoint_available_done)
     def default_setup_endpoint_available(keystone):
         """When the identity-service interface is available, this default
         handler switches on the SSL support.
@@ -172,6 +216,13 @@ def make_setup_endpoint_available_handler():
         instance = OpenStackCharm.singleton
         instance.configure_ssl(keystone)
         instance.assess_status()
+        reactive.set_state(DefaultHandlersLocks.setup_endpoint_available_done)
+
+    @reactive.when(DefaultHandlersLocks.setup_endpoint_available_done)
+    @reactive.when_not('identity-service.available')
+    def clear_default_setup_endpoint_available(keystone):
+        reactive.remove_state(
+            DefaultHandlersLocks.setup_endpoint_available_done)
 
 
 @_map_default_handler('config.changed')

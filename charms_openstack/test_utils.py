@@ -107,19 +107,55 @@ class TestRegisteredHooks(PatchHelper):
     DEFAULTS = {
         'when': {
             'default_amqp_connection': ('amqp.connected', ),
+            'clear_default_amqp_connection': (
+                'default_amqp_connection_done', ),
             'default_setup_database': ('shared-db.connected', ),
+            'clear_default_setup_database': ('default_setup_database_done', ),
             'default_setup_endpoint_connection': (
                 'identity-service.connected', ),
-            'default_config_changed': ('config.changed', ),
+            'clear_default_setup_endpoint_connection': (
+                'default_setup_endpoint_connection_done', ),
             'default_setup_endpoint_available': (
                 'identity-service.available', ),
+            'clear_default_setup_endpoint_available': (
+                'default_setup_endpoint_available_done', ),
+            'default_config_changed': ('config.changed', ),
         },
         'when_not': {
             'default_install': ('charm.installed', ),
+            'default_amqp_connection': ('default_amqp_connection_done', ),
+            'clear_default_amqp_connection': ('amqp.connected', ),
+            'default_setup_database': ('default_setup_database_done', ),
+            'clear_default_setup_database': ('shared-db.connected', ),
+            'default_setup_endpoint_connection': (
+                'default_setup_endpoint_connection_done', ),
+            'clear_default_setup_endpoint_connection': (
+                'identity-service.connected', ),
+            'default_setup_endpoint_available': (
+                'default_setup_endpoint_available_done', ),
+            'clear_default_setup_endpoint_available': (
+                'identity-service.available', ),
         },
         'hook': {
             'default_update_status': ('update-status', ),
+            'default_upgrade_charm': ('upgrade-charm', ),
         },
+    }
+
+    DEFAULTS_FLAG_MAP = {
+        'charm.installed': ('charm.installed', ),
+        'amqp.connected': ('amqp.connected', 'default_amqp_connection_done', ),
+        'shared-db.connected': ('shared-db.connected',
+                                'default_setup_database_done', ),
+        'identity-service.connected': (
+            'identity-service.connected',
+            'default_setup_endpoint_connection_done', ),
+        'identity-service.available': (
+            'identity-service.available',
+            'default_setup_endpoint_available_done', ),
+        'config.changed': ('config.changed', ),
+        'update-charm': ('upgrade-charm', ),
+        'update-status': ('update-status', ),
     }
 
     @staticmethod
@@ -180,10 +216,14 @@ class TestRegisteredHooks(PatchHelper):
             author wants to check actually are set.
         """
         defaults = defaults or []
+        # turns default names into a set of flags to look for.
+        set_defaults_flags = set(itertools.chain(
+            *(v for k, v in self.DEFAULTS_FLAG_MAP.items() if k in defaults)))
         # extract the name of the hook from default states.
         default_hooks = set(
             hook for hook, spec in self.DEFAULTS.items()
-            if (set(defaults).intersection(itertools.chain(*spec.values()))))
+            if (set_defaults_flags
+                .intersection(itertools.chain(*spec.values()))))
         # set up the hooks for the passed ones and any defaults
         for hook in default_hooks.union(hook_set.keys()):
             self._mock_hook(hook)
@@ -202,10 +242,9 @@ class TestRegisteredHooks(PatchHelper):
         # merge the default hooks and hook_set's to find a set of functions
         # that should exist.
         test_set = hook_set.copy()
-        set_defaults = set(defaults)
         for default_hook, spec in self.DEFAULTS.items():
             for f, state_list in spec.items():
-                if set_defaults.intersection(state_list):
+                if set_defaults_flags.intersection(state_list):
                     try:
                         test_set[default_hook][f] = state_list
                     except KeyError:

@@ -134,51 +134,91 @@ class TestDefaults(BaseOpenStackCharmTest):
     def test_default_amqp_connection_handler(self):
         self.assertIn('amqp.connected', chm._default_handler_map)
         self.patch_object(chm.reactive, 'when')
-        h = self.mock_decorator_gen()
-        self.when.side_effect = h.decorator
+        h_when = self.mock_decorator_gen()
+        self.when.side_effect = h_when.decorator
+        self.patch_object(chm.reactive, 'when_not')
+        h_when_not = self.mock_decorator_gen()
+        self.when_not.side_effect = h_when_not.decorator
+        self.patch_object(chm.reactive, 'set_state')
+        self.patch_object(chm.reactive, 'remove_state')
         # call the default handler installer function, and check its map.
         f = chm._default_handler_map['amqp.connected']
         f()
-        self.assertIn('amqp.connected', h.map)
+        self.assertIn('amqp.connected', h_when.map)
+        self.assertIn('default_amqp_connection_done', h_when_not.map)
         # verify that the installed function works
         self.patch_object(chm, 'OpenStackCharm', name='charm')
         self.charm.singleton.get_amqp_credentials.return_value = \
             ('user', 'vhost')
         amqp = mock.MagicMock()
-        h.map['amqp.connected'](amqp)
+        h_when.map['amqp.connected'](amqp)
         self.charm.singleton.get_amqp_credentials.assert_called_once_with()
         amqp.request_access.assert_called_once_with(username='user',
                                                     vhost='vhost')
         self.charm.singleton.assess_status.assert_called_once_with()
+        self.set_state.assert_called_once_with(
+            'default_amqp_connection_done')
+        # also check for the 'detaching' handler
+        self.assertIn('amqp.connected', h_when_not.map)
+        self.assertIn('default_amqp_connection_done', h_when.map)
+        # check the functions are different!
+        self.assertNotEqual(h_when.map['amqp.connected'],
+                            h_when_not.map['amqp.connected'])
+        h_when_not.map['amqp.connected'](amqp)
+        self.remove_state.assert_called_once_with(
+            'default_amqp_connection_done')
 
     def test_default_setup_datatbase_handler(self):
         self.assertIn('shared-db.connected', chm._default_handler_map)
         self.patch_object(chm.reactive, 'when')
-        h = self.mock_decorator_gen()
-        self.when.side_effect = h.decorator
+        h_when = self.mock_decorator_gen()
+        self.when.side_effect = h_when.decorator
+        self.patch_object(chm.reactive, 'when_not')
+        h_when_not = self.mock_decorator_gen()
+        self.when_not.side_effect = h_when_not.decorator
+        self.patch_object(chm.reactive, 'set_state')
+        self.patch_object(chm.reactive, 'remove_state')
         # call the default handler installer function, and check its map.
         f = chm._default_handler_map['shared-db.connected']
         f()
-        self.assertIn('shared-db.connected', h.map)
+        self.assertIn('shared-db.connected', h_when.map)
+        self.assertIn('default_setup_database_done', h_when_not.map)
         # verify that the installed function works
         self.patch_object(chm, 'OpenStackCharm', name='charm')
         self.charm.singleton.get_database_setup.return_value = [
             {'database': 'configuration'}]
         database = mock.MagicMock()
-        h.map['shared-db.connected'](database)
+        h_when.map['shared-db.connected'](database)
         self.charm.singleton.get_database_setup.assert_called_once_with()
         database.configure.assert_called_once_with(database='configuration')
         self.charm.singleton.assess_status.assert_called_once_with()
+        self.set_state.assert_called_once_with(
+            'default_setup_database_done')
+        # also check for the 'detaching' handler
+        self.assertIn('shared-db.connected', h_when_not.map)
+        self.assertIn('default_setup_database_done', h_when.map)
+        # check the functions are different!
+        self.assertNotEqual(h_when.map['shared-db.connected'],
+                            h_when_not.map['shared-db.connected'])
+        h_when_not.map['shared-db.connected'](database)
+        self.remove_state.assert_called_once_with(
+            'default_setup_database_done')
 
     def test_default_setup_endpoint_handler(self):
         self.assertIn('identity-service.connected', chm._default_handler_map)
         self.patch_object(chm.reactive, 'when')
-        h = self.mock_decorator_gen()
-        self.when.side_effect = h.decorator
+        h_when = self.mock_decorator_gen()
+        self.when.side_effect = h_when.decorator
+        self.patch_object(chm.reactive, 'when_not')
+        h_when_not = self.mock_decorator_gen()
+        self.when_not.side_effect = h_when_not.decorator
+        self.patch_object(chm.reactive, 'set_state')
+        self.patch_object(chm.reactive, 'remove_state')
         # call the default handler installer function, and check its map.
         f = chm._default_handler_map['identity-service.connected']
         f()
-        self.assertIn('identity-service.connected', h.map)
+        self.assertIn('identity-service.connected', h_when.map)
+        self.assertIn('default_setup_endpoint_connection_done', h_when_not.map)
         # verify that the installed function works
 
         OpenStackCharm = mock.MagicMock()
@@ -192,27 +232,54 @@ class TestDefaults(BaseOpenStackCharmTest):
             assess_status = mock.MagicMock()
 
         OpenStackCharm.singleton = Instance
+        keystone = mock.MagicMock()
         with mock.patch.object(chm, 'OpenStackCharm', new=OpenStackCharm):
-            keystone = mock.MagicMock()
-            h.map['identity-service.connected'](keystone)
+            h_when.map['identity-service.connected'](keystone)
             keystone.register_endpoints.assert_called_once_with(
                 'type1', 'region1', 'public_url', 'internal_url', 'admin_url')
             Instance.assess_status.assert_called_once_with()
+        self.set_state.assert_called_once_with(
+            'default_setup_endpoint_connection_done')
+        # also check for the 'detaching' handler
+        self.assertIn('identity-service.connected', h_when_not.map)
+        self.assertIn('default_setup_endpoint_connection_done', h_when.map)
+        # check the functions are different!
+        self.assertNotEqual(h_when.map['identity-service.connected'],
+                            h_when_not.map['identity-service.connected'])
+        h_when_not.map['identity-service.connected'](keystone)
+        self.remove_state.assert_called_once_with(
+            'default_setup_endpoint_connection_done')
 
     def test_default_setup_endpoint_available_handler(self):
         self.assertIn('identity-service.available', chm._default_handler_map)
         self.patch_object(chm.reactive, 'when')
-        h = self.mock_decorator_gen()
-        self.when.side_effect = h.decorator
+        h_when = self.mock_decorator_gen()
+        self.when.side_effect = h_when.decorator
+        self.patch_object(chm.reactive, 'when_not')
+        h_when_not = self.mock_decorator_gen()
+        self.when_not.side_effect = h_when_not.decorator
+        self.patch_object(chm.reactive, 'set_state')
+        self.patch_object(chm.reactive, 'remove_state')
         # call the default handler installer function, and check its map.
         f = chm._default_handler_map['identity-service.available']
         f()
-        self.assertIn('identity-service.available', h.map)
+        self.assertIn('identity-service.available', h_when.map)
         # verify that the installed function works
         self.patch_object(chm, 'OpenStackCharm', name='charm')
-        h.map['identity-service.available']('keystone')
+        h_when.map['identity-service.available']('keystone')
         self.charm.singleton.configure_ssl.assert_called_once_with('keystone')
         self.charm.singleton.assess_status.assert_called_once_with()
+        self.set_state.assert_called_once_with(
+            'default_setup_endpoint_available_done')
+        # also check for the 'detaching' handler
+        self.assertIn('identity-service.available', h_when_not.map)
+        self.assertIn('default_setup_endpoint_available_done', h_when.map)
+        # check the functions are different!
+        self.assertNotEqual(h_when.map['identity-service.available'],
+                            h_when_not.map['identity-service.available'])
+        h_when_not.map['identity-service.available']('keystone')
+        self.remove_state.assert_called_once_with(
+            'default_setup_endpoint_available_done')
 
     def test_default_config_changed_handler(self):
         self.assertIn('config.changed', chm._default_handler_map)
