@@ -1165,7 +1165,8 @@ class OpenStackAPIRelationAdapters(OpenStackRelationAdapters):
         else:
             # LY: Automatically add the cluster relation if it exists and
             # has not been passed through.
-            cluster_rel = reactive.RelationBase.from_state('cluster.connected')
+            # cluster_rel = reactive.RelationBase.from_state('cluster.connected')
+            cluster_rel = relations.endpoint_from_flag('cluster.connected')
             if cluster_rel:
                 return PeerHARelationAdapter(relation=cluster_rel)
         return None
